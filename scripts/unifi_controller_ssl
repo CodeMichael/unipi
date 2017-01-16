@@ -1,0 +1,40 @@
+#!/bin/bash
+#
+# DOMAIN=test.com
+# EMAIL=test@test.com
+# KEYSTORE=/opt/UniFi/data/keystore
+# STOREPASS=monkey123
+# KEYPASS=butter123
+# CERTDIR=/etc/letsencrypt/live/${DOMAIN}
+# KEYTOOL=/usr/lib/jvm/default/jre/bin/keytool
+# export DOMAIN EMAIL KEYSTORE STOREPASS
+
+if [ ${UID} -ne 0 ]; then
+  echo "this script should be run as root"
+  exit 1
+fi
+
+source /etc/controller.env
+
+#the script itself:
+mkdir -p /var/git
+cd /var/git
+if [ ! -d letsencrypt ]; then
+  git clone https://github.com/letsencrypt/letsencrypt
+fi
+cd letsencrypt
+git pull origin master
+
+if [ ! -f ${CERTDIR}/cert.pem ]; then
+  ./letsencrypt-auto certonly --standalone -d ${DOMAIN} --renew-by-default --email ${EMAIL} --agree-tos
+else
+  ./letsencrypt-auto renew
+fi
+
+${KEYTOOL} -delete -alias root -storepass ${KEYPASS} -keystore ${KEYSTORE}
+${KEYTOOL} -delete -alias unifi -storepass ${KEYPASS} -keystore ${KEYSTORE}
+
+openssl pkcs12 -export -in ${CERTDIR}/fullchain.pem -inkey ${CERTDIR}/privkey.pem -out ${CERTDIR}/cert_and_key.p12 -name unifi -CAfile ${CERTDIR}/chain.pem -caname root -password pass:${STOREPASS}
+
+${KEYTOOL} -importkeystore -srcstorepass ${STOREPASS} -deststorepass ${KEYPASS} -destkeypass ${KEYPASS} -srckeystore ${CERTDIR}/cert_and_key.p12 -srcstoretype PKCS12 -alias unifi -keystore ${KEYSTORE}
+${KEYTOOL} -import -trustcacerts -alias root -deststorepass ${KEYPASS} -file ${CERTDIR}/chain.pem -noprompt -keystore ${KEYSTORE}
