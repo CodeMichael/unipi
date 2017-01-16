@@ -1,0 +1,17 @@
+#
+# Systemd unit file for unifi-rapid
+#
+
+[Unit]
+Description=UniFi Wireless AP Control System
+
+[Service]
+Type=simple
+User=unifi
+ExecStart=/usr/bin/java -jar /opt/UniFi/lib/ace.jar start
+ExecStop=/usr/bin/java -jar /opt/UniFi/lib/ace.jar stop
+SuccessStartStatus=0
+SuccessExitStatus=255
+
+[Install]
+WantedBy=multi-user.target
