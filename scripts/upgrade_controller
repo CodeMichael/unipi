@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+''' upgrade the unifi controller to custom directory '''
+
+import os
+import shutil
+import argparse
+import subprocess
+import requests
+
+def config():
+    ''' config runtime '''
+    configuration = {}
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v',
+                        '--version',
+                        dest='version',
+                        help='version to downloaded and installed'
+                       )
+    parser.add_argument('-d',
+                        '--dir',
+                        dest='install_dir',
+                        help='directory that unifi controller is installed',
+                        default='/opt/UniFi'
+                       )
+    parser.add_argument('-u',
+                        '--url',
+                        dest='url',
+                        help='download URL',
+                        default=None
+                       )
+    parser.add_argument('--temp-dir',
+                        dest='temp_dir',
+                        help='directory to write temporary files to',
+                        default='/tmp'
+                       )
+    args = parser.parse_args()
+    if args.url is None:
+        args.url = 'http://dl.ubnt.com/unifi/{}/unifi_sysvinit_all.deb'.format(args.version)
+
+    configuration['unpackage_dir'] = '{}/unifi'.format(args.temp_dir)
+    return configuration, args
+
+def download_controller():
+    ''' get the deb for the controller '''
+    response = requests.get(__args__.url, stream=True)
+    deb_target = '{}/{}'.format(
+        __args__.temp_dir,
+        __args__.url.split('/')[-1]
+        )
+    print("Download %s" % __args__.url)
+    with open(deb_target, 'wb') as file_handler:
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk: # filter out keep-alive new chunks
+                file_handler.write(chunk)
+    return deb_target
+
+def unpack_deb(deb_file):
+    ''' unpack the controller debian package '''
+    cmd = '/usr/bin/dpkg -x {} {}'.format(
+        deb_file,
+        __config__['unpackage_dir']
+        )
+    print(cmd)
+    subprocess.check_output(cmd, shell=True)
+
+def stop_controller():
+    ''' stop the controller service '''
+    cmd = '/bin/systemctl stop unifi.service'
+    print(cmd)
+    subprocess.check_output(cmd, shell=True)
+
+def start_controller():
+    ''' start the controller service '''
+    cmd = '/bin/systemctl start unifi.service'
+    print(cmd)
+    subprocess.check_output(cmd, shell=True)
+
+def backup_current_controller():
+    ''' make a backup of the current files, and a special backup of the data dir '''
+    # delete existing data backup
+    data_bak = '{}/unifi_data.tar.gz'.format(__args__.install_dir)
+    if os.path.isfile:
+        print("delete {}".format(data_bak))
+        os.unlink(data_bak)
+    # backup the data dir
+    cmd = 'tar -C {} -cvzf {} {}/data'.format(
+        __args__.install_dir,
+        data_bak,
+        __args__.install_dir
+    )
+    print(cmd)
+    subprocess.check_output(cmd, shell=True)
+    # delete old backup
+    unifi_bak = '{}.bak'.format(__args__.install_dir)
+    if os.path.isdir(unifi_bak):
+        print("delete {}".format(unifi_bak))
+        shutil.rmtree(unifi_bak)
+    print("copy {}->{}".format(__args__.install_dir, unifi_bak))
+    shutil.copytree(
+        __args__.install_dir,
+        unifi_bak
+    )
+
+def deploy_new_controller():
+    ''' copy the new files into place '''
+    new_unifi = '{}/usr/lib/unifi'.format(__config__['unpackage_dir'])
+    new_data = '{}/data'.format(new_unifi)
+    if os.path.isdir(new_data):
+        print("delete {}".format(new_data))
+        shutil.rmtree(new_data)
+    cmd = "cp -r {}/* {}/.".format(new_unifi, __args__.install_dir)
+    print(cmd)
+    subprocess.check_output(cmd, shell=True)
+
+def main():
+    ''' main body of the app '''
+    # download deb
+    deb = download_controller()
+    # unpack deb
+    unpack_deb(deb)
+    # stop service
+    stop_controller()
+    # make backup
+    # make backup of data dir
+    backup_current_controller()
+    # copy new files in place
+    deploy_new_controller()
+    # restart service
+    start_controller()
+
+if __name__ == '__main__':
+    __config__, __args__ = config()
+    main()
