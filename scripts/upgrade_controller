@@ -5,6 +5,7 @@ import os
 import shutil
 import argparse
 import subprocess
+import logging
 import requests
 
 def config():
@@ -35,12 +36,14 @@ def config():
                        )
     args = parser.parse_args()
     if args.url is None:
-	if args.version is not None:
-		args.url = 'http://dl.ubnt.com/unifi/{}/unifi_sysvinit_all.deb'.format(args.version)
-	else:
-		err = 'No -u or -v specified.  One of those is necessary to determine what version of the controller to install'
-		logging.critical(err)
-		exit(1)
+        if args.version is not None:
+            args.url = 'http://dl.ubnt.com/unifi/{}/unifi_sysvinit_all.deb'.format(args.version)
+        else:
+            err = 'No -u or -v specified.  '\
+            'One of those is necessary to determine '\
+            'what version of the controller to install'
+            logging.critical(err)
+            exit(1)
 
     configuration['unpackage_dir'] = '{}/unifi'.format(args.temp_dir)
     return configuration, args
