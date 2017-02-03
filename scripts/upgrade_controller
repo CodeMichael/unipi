@@ -51,6 +51,9 @@ def config():
 def download_controller():
     ''' get the deb for the controller '''
     response = requests.get(__args__.url, stream=True)
+    if response.status_code != requests.codes.ok:
+        logging.critical("Faild to download the controller file")
+        exit(2)
     deb_target = '{}/{}'.format(
         __args__.temp_dir,
         __args__.url.split('/')[-1]
